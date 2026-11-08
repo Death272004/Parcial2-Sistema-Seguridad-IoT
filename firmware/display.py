@@ -1,16 +1,20 @@
 """
 display.py
-=====================================================================
+
 Capa de PRESENTACIÓN - Display OLED SSD1306 128x64 (I2C).
 
 Muestra en tiempo real el estado del sistema de seguridad:
 estado, detección de movimiento, nivel de luz y alarma.
 
-Diseño defensivo: si la biblioteca `micropython-ssd1306` no está
-instalada o el display no responde en el bus I2C, el módulo sigue
-funcionando sin display (se desactiva a sí mismo) y el resto del
-sistema no se ve afectado.
-=====================================================================
+Diseño DEFENSIVO:
+  * Si la biblioteca `micropython-ssd1306` no está instalada o el display
+    no responde, el módulo se desactiva a sí mismo y el resto del sistema
+    sigue funcionando.
+  * Compatibilidad con diferentes versiones del driver ssd1306: el código
+    detecta automáticamente los métodos disponibles (hline/vline vs fill/pixel)
+    y usa los que existan.
+  * Todas las operaciones de renderizado están envueltas en try/except para
+    que un error en el display no crashee el firmware.
 """
 
 import config
@@ -26,6 +30,23 @@ except ImportError:          # entorno de pruebas sin MicroPython
     I2C = None
 
 
+def _safe_hline(oled, x, y, length, color=1):
+    """Intenta dibujar una línea horizontal; si el método no existe, usa fill."""
+    try:
+        oled.hline(x, y, length, color)
+    except AttributeError:
+        # Fallback: dibujar un rectángulo de 1 píxel de alto
+        oled.fill_rect(x, y, length, 1, color)
+
+
+def _safe_vline(oled, x, y, length, color=1):
+    """Intenta dibujar una línea vertical; si el método no existe, usa fill."""
+    try:
+        oled.vline(x, y, length, color)
+    except AttributeError:
+        oled.fill_rect(x, y, 1, length, color)
+
+
 class OledDisplay:
     """Envuelve el OLED SSD1306 y ofrece un método `render(snapshot)`."""
 
@@ -38,6 +59,8 @@ class OledDisplay:
         self._oled = None
         self._width = width
         self._height = height
+        self._has_hline = False
+        self._has_vline = False
 
         if I2C is None or SSD1306_I2C is None:
             print("[display] biblioteca ssd1306 no disponible -> sin OLED")
@@ -51,7 +74,11 @@ class OledDisplay:
                 return
             self._oled = SSD1306_I2C(width, height, i2c)
             self.available = True
-            print("[display] OLED SSD1306 listo en 0x{:02X}".format(found[0]))
+            # Detectar qué métodos soporta el driver concreto de Wokwi
+            self._has_hline = hasattr(self._oled, "hline")
+            self._has_vline = hasattr(self._oled, "vline")
+            print("[display] OLED SSD1306 listo en 0x{:02X} (hline={}, vline={})."
+                  .format(found[0], self._has_hline, self._has_vline))
         except Exception as error:                # pragma: no cover
             print("[display] error inicializando OLED:", error)
 
@@ -62,6 +89,20 @@ class OledDisplay:
         # 128 px / 8 px por caracter = 16 caracteres por línea
         max_chars = self._width // 8
         self._oled.text(str(text)[:max_chars], col, row * 8)
+
+    def _hline(self, oled, x, y, length, color=1):
+        """Dibuja una línea horizontal usando el método disponible."""
+        if self._has_hline:
+            oled.hline(x, y, length, color)
+        else:
+            _safe_hline(oled, x, y, length, color)
+
+    def _vline(self, oled, x, y, length, color=1):
+        """Dibuja una línea vertical usando el método disponible."""
+        if self._has_vline:
+            oled.vline(x, y, length, color)
+        else:
+            _safe_vline(oled, x, y, length, color)
 
     def render(self, snapshot):
         """Dibuja la pantalla de estado a partir del snapshot del sistema.
@@ -75,7 +116,7 @@ class OledDisplay:
             oled.fill(0)
 
             self._line("SEGURIDAD IoT", 0)
-            oled.hline(0, 9, self._width, 1)
+            self._hline(oled, 0, 9, self._width, 1)
 
             estado = snapshot.get("state", "?")
             self._line("Estado: {}".format(estado), 2)
@@ -88,7 +129,7 @@ class OledDisplay:
             self._line("Alarma: {}".format("ACTIVA" if alarma else "off"), 4)
 
             self._line("MQTT: {}".format(snapshot.get("mqtt", "?")), 5)
-            oled.hline(0, 50, self._width, 1)
+            self._hline(oled, 0, 50, self._width, 1)
             self._line(snapshot.get("detail", "")[:16], 6)
 
             oled.show()
