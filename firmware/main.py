@@ -28,6 +28,11 @@ Cada archivo del firmware tiene una única responsabilidad:
 =====================================================================
 """
 
+def print_boot_note():
+    """Imprime una nota explicando el log de arranque que aparece al iniciar."""
+    print("")
+
+
 import time
 from machine import Pin
 
@@ -169,13 +174,19 @@ def main():
             time.sleep_ms(config.LOOP_SLEEP_MS)
 
     except KeyboardInterrupt:
+        # Resumen al detener la simulación con Ctrl+C
         print("\n[main] simulación detenida por el usuario")
+        print("[main] muestreos realizados: {}".format(sample_count))
+        print("[main] detecciones de movimiento: {}".format(motion_count))
+        print("[main] instancias de alarma activada: {}".format(alarm_count))
+        print("[main] sistema apagado de forma segura")
+
     finally:
         # Apagado ordenado de actuadores y red
         alarm_panel.shutdown()
         status_led.off()
         mqtt.disconnect()
-        print("[main] sistema apagado de forma segura")
+        print("[main] recursos liberados y conexión MQTT finalizada")
 
 
 if __name__ == "__main__":
