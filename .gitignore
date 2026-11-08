@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Base de datos local (se regenera al ejecutar el backend)
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# Artefactos de Wokwi / entregables generados
+*.zip
+*.log
+
+# Editores y sistema
+.idea/
+.vscode/
+.DS_Store

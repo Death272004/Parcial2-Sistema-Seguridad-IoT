@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guía paso a paso — Sistema IoT de Seguridad</title>
+<style>
+@page {
+  size: A4;
+  margin: 2.0cm 1.8cm 2.2cm 1.8cm;
+  @top-right {
+    content: "Sistema IoT de Seguridad — Guía paso a paso";
+    font-family: 'DejaVu Sans', sans-serif;
+    font-size: 7.5pt; color: #8b949e;
+  }
+  @bottom-center {
+    content: "Parcial #2 · Desarrollo de Software VIII · UTP  —  página "
+             counter(page) " de " counter(pages);
+    font-family: 'DejaVu Sans', sans-serif;
+    font-size: 7.5pt; color: #8b949e;
+  }
+}
+
+body {
+  font-family: 'DejaVu Sans', Arial, sans-serif;
+  font-size: 9.8pt;
+  line-height: 1.5;
+  color: #1b1f23;
+}
+
+h1 {
+  font-size: 21pt; color: #0a1117; line-height: 1.25;
+  border-bottom: 3px solid #e63946; padding-bottom: 8px;
+  margin: 0 0 6px 0;
+}
+h2 {
+  font-size: 13.5pt; color: #0a1117; margin-top: 24px;
+  border-left: 5px solid #e63946; padding-left: 9px;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 11pt; color: #333; margin-top: 16px;
+  page-break-after: avoid;
+}
+
+p { margin: 6px 0; }
+li { margin: 2px 0; }
+hr { border: none; border-top: 1px solid #d0d7de; margin: 18px 0; }
+strong { color: #0a1117; }
+a { color: #0969da; text-decoration: none; }
+
+code, pre { font-family: 'DejaVu Sans Mono', 'Courier New', monospace; }
+code {
+  background-color: #eef1f4; padding: 0 3px;
+  font-size: 8.8pt; border-radius: 2px;
+}
+pre {
+  background-color: #f6f8fa; border: 1px solid #d0d7de;
+  border-left: 4px solid #e63946; padding: 8px 10px;
+  font-size: 7.6pt; line-height: 1.28; white-space: pre-wrap;
+  page-break-inside: avoid;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+table {
+  border-collapse: collapse; width: 100%; font-size: 8.6pt;
+  margin: 10px 0; page-break-inside: avoid;
+}
+th {
+  background-color: #0a1117; color: #ffffff; padding: 5px 7px;
+  text-align: left; border: 1px solid #8b949e;
+}
+td {
+  padding: 4px 7px; border: 1px solid #c9d1d9; vertical-align: top;
+}
+tr:nth-child(even) td { background-color: #f6f8fa; }
+
+blockquote {
+  background-color: #fff8e6; border-left: 4px solid #e0a800;
+  margin: 8px 0; padding: 6px 12px;
+}
+blockquote p { margin: 2px 0; }
+</style>
+</head>
+<body>
+<h1 id="guia-paso-a-paso-sistema-iot-de-seguridad-deteccion-y-alertas">Guía paso a paso — Sistema IoT de Seguridad (Detección y alertas)</h1>
+<p><strong>Parcial #2 · Desarrollo de Software VIII · Universidad Tecnológica de Panamá</strong><br>
+<strong>Escenario elegido: 4) Sistema de Seguridad - Detección y alertas</strong><br>
+<strong>Autor: Richard Rodríguez — github.com/Death272004</strong></p>
+<hr>
+<h2 id="0-que-vas-a-construir">0. Qué vas a construir</h2>
+<p>Un sistema de seguridad completo que:</p>
+<ol>
+<li><strong>Detecta movimiento</strong> con un sensor PIR y mide la <strong>luz ambiental</strong> con un LDR.</li>
+<li><strong>Activa alarmas</strong>: LED rojo parpadeante, buzzer (sirena) y pantalla OLED con el estado.</li>
+<li><strong>Se arma y desarma</strong> desde un botón físico o <strong>remotamente desde la nube</strong>.</li>
+<li><strong>Publica telemetría y eventos por MQTT</strong> desde un ESP32 (simulado en Wokwi).</li>
+<li><strong>Guarda todo en SQLite</strong> con fecha y hora: lecturas, eventos y comandos ejecutados.</li>
+<li><strong>Muestra un dashboard en tiempo real en ThingSpeak</strong> y recibe <strong>comandos desde la nube</strong>.</li>
+</ol>
+<pre><code>   [Sensores PIR + LDR]
+            |
+            v  lectura cada 500 ms
+   [ESP32 en Wokwi] ---- telemetría / eventos ----&gt; [MQTT broker]
+            ^                                          |
+            |                                          v
+     [comandos]  &lt;----  [Backend Python]  ----&gt;  [SQLite]
+                                                      |
+                                                      v
+                                              [ThingSpeak nube]
+</code></pre>
+<hr>
+<h2 id="1-requisitos-previos">1. Requisitos previos</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Requisito</th>
+<th>Detalle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Cuenta en <strong>Wokwi</strong></td>
+<td><a href="https://wokwi.com">https://wokwi.com</a> (plan gratuito)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Cuenta en <strong>ThingSpeak</strong></td>
+<td><a href="https://thingspeak.com">https://thingspeak.com</a> (plan gratuito)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Python 3.9 o superior</strong></td>
+<td><code>python3 --version</code> en una terminal</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Git</strong> y cuenta en <strong>GitHub</strong></td>
+<td>para subir el código fuente</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Este repositorio</td>
+<td><code>Parcial2-Sistema-Seguridad-IoT</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Dato importante:</strong> Wokwi tiene <strong>acceso real a Internet</strong> desde la simulación
+(IoT Gateway). Por eso el ESP32 puede conectarse a <code>broker.hivemq.com</code> sin instalar
+ningún broker local.</p>
+</blockquote>
+<hr>
+<h2 id="2-estructura-del-proyecto">2. Estructura del proyecto</h2>
+<pre><code>Parcial2-Sistema-Seguridad-IoT/
+├── README.md                  Documentación principal
+├── requirements.txt           Dependencias del backend
+├── firmware/                  Código del dispositivo (Wokwi)
+│   ├── main.py                Bucle principal / orquestador
+│   ├── config.py              Pines, red, MQTT, umbrales
+│   ├── sensors.py             PIR + LDR (conversión a lux)
+│   ├── actuators.py           LEDs, buzzer y panel de alarma
+│   ├── display.py             Pantalla OLED SSD1306
+│   ├── net_mqtt.py            WiFi + cliente MQTT
+│   ├── security.py            Máquina de estados y eventos
+│   ├── diagram.json           Circuito de Wokwi
+│   └── libraries.txt          Bibliotecas de Wokwi
+├── backend/                   Integración Python 3
+│   ├── main.py                Orquestador (MQTT ↔ SQLite ↔ ThingSpeak)
+│   ├── config.py              Configuración / variables de entorno
+│   ├── database.py            Capa SQLite (thread-safe)
+│   ├── mqtt_bridge.py         Puente MQTT (paho 1.x / 2.x)
+│   ├── thingspeak.py          Cliente ThingSpeak + TalkBack
+│   ├── queries.py             CLI de históricos
+│   └── cli.py                 Envío manual de comandos
+├── sql/
+│   ├── schema.sql             Esquema de la base de datos
+│   └── consultas.sql          Consultas de histórico comentadas
+├── tests/
+│   └── simulador_dispositivo.py   Emula el ESP32 para probar sin Wokwi
+└── docs/
+    ├── arquitectura.md        Diagramas, contratos y modelo de datos
+    ├── guia-paso-a-paso.md    Este archivo (fuente del PDF)
+    └── capturas/              Capturas de pantalla (entregable)
+</code></pre>
+<hr>
+<h2 id="3-parte-a-montar-el-circuito-en-wokwi">3. PARTE A — Montar el circuito en Wokwi</h2>
+<h3 id="a1-crear-el-proyecto">A.1 Crear el proyecto</h3>
+<ol>
+<li>Entra a <a href="https://wokwi.com">https://wokwi.com</a> y pulsa <strong>Start</strong> → elige <strong>ESP32 + MicroPython</strong>.</li>
+<li>En la pestaña <strong>Diagram</strong>, borra el contenido por defecto y pega el archivo
+   <code>firmware/diagram.json</code> de este repositorio.</li>
+</ol>
+<h3 id="a2-componentes-utilizados">A.2 Componentes utilizados</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Componente</th>
+<th>Parte en Wokwi</th>
+<th>Cantidad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Placa ESP32 DevKit V4</td>
+<td><code>board-esp32-devkit-c-v4</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Sensor de movimiento PIR</td>
+<td><code>wokwi-pir-motion-sensor</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Módulo fotoresistivo (LDR)</td>
+<td><code>wokwi-photoresistor-sensor</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>LED rojo (alarma)</td>
+<td><code>wokwi-led</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>5</td>
+<td>LED verde (estado)</td>
+<td><code>wokwi-led</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Buzzer</td>
+<td><code>wokwi-buzzer</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Pantalla OLED 128×64</td>
+<td><code>board-ssd1306</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Botón táctil</td>
+<td><code>wokwi-pushbutton</code></td>
+<td>1</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Resistencias 220 Ω</td>
+<td><code>wokwi-resistor</code></td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+<h3 id="a3-tabla-de-cableado">A.3 Tabla de cableado</h3>
+<table>
+<thead>
+<tr>
+<th>Señal</th>
+<th>Componente</th>
+<th>Pin ESP32</th>
+<th>Color sugerido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Entrada de movimiento</td>
+<td>PIR → <code>OUT</code></td>
+<td><strong>GPIO 13</strong></td>
+<td>naranja</td>
+</tr>
+<tr>
+<td>Alimentación PIR</td>
+<td>PIR → <code>VCC</code> / <code>GND</code></td>
+<td>3V3 / GND</td>
+<td>rojo / negro</td>
+</tr>
+<tr>
+<td>Entrada analógica</td>
+<td>LDR → <code>AO</code></td>
+<td><strong>GPIO 34</strong> (ADC)</td>
+<td>amarillo</td>
+</tr>
+<tr>
+<td>Alimentación LDR</td>
+<td>LDR → <code>VCC</code> / <code>GND</code></td>
+<td>3V3 / GND</td>
+<td>rojo / negro</td>
+</tr>
+<tr>
+<td>Alarma visual</td>
+<td>LED rojo → R 220 Ω</td>
+<td><strong>GPIO 25</strong></td>
+<td>rojo</td>
+</tr>
+<tr>
+<td>Indicador ARMADO</td>
+<td>LED verde → R 220 Ω</td>
+<td><strong>GPIO 27</strong></td>
+<td>verde</td>
+</tr>
+<tr>
+<td>Sirena</td>
+<td>Buzzer pin 2 (+)</td>
+<td><strong>GPIO 26</strong></td>
+<td>morado</td>
+</tr>
+<tr>
+<td>Cátodos</td>
+<td>LED rojo/verde <code>C</code>, Buzzer pin 1</td>
+<td>GND</td>
+<td>negro</td>
+</tr>
+<tr>
+<td>Botón</td>
+<td>Pushbutton <code>1.l</code></td>
+<td><strong>GPIO 14</strong></td>
+<td>azul</td>
+</tr>
+<tr>
+<td>Botón</td>
+<td>Pushbutton <code>2.l</code></td>
+<td>GND</td>
+<td>negro</td>
+</tr>
+<tr>
+<td>Display I2C</td>
+<td>OLED → <code>SDA</code> / <code>SCL</code></td>
+<td><strong>GPIO 21 / 22</strong></td>
+<td>cian / magenta</td>
+</tr>
+<tr>
+<td>Alimentación OLED</td>
+<td>OLED → <code>VCC</code> / <code>GND</code></td>
+<td>3V3 / GND</td>
+<td>rojo / negro</td>
+</tr>
+<tr>
+<td>Monitor serie</td>
+<td>ESP32 <code>TX</code> / <code>RX</code></td>
+<td><code>$serialMonitor</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>El botón se conecta a GND y usa la <strong>resistencia de pull-up interna</strong> del ESP32
+(se detecta el flanco de bajada, sin componente externo).</p>
+</blockquote>
+<h3 id="a4-bibliotecas-de-wokwi">A.4 Bibliotecas de Wokwi</h3>
+<p>En la pestaña de código, abre el <strong>Library Manager</strong> y agrega:</p>
+<pre><code>micropython-umqtt.simple
+micropython-ssd1306
+</code></pre>
+<p>(Equivalente a pegar el contenido de <code>firmware/libraries.txt</code>.)</p>
+<hr>
+<h2 id="4-parte-b-codigo-del-dispositivo-firmware">4. PARTE B — Código del dispositivo (firmware)</h2>
+<h3 id="b1-cargar-los-archivos">B.1 Cargar los archivos</h3>
+<p>En el editor de Wokwi, junto a la pestaña <code>main.py</code> pulsa el botón <strong>+</strong> y crea
+los archivos <code>config.py</code>, <code>sensors.py</code>, <code>actuators.py</code>, <code>display.py</code>,
+<code>net_mqtt.py</code> y <code>security.py</code>, pegando el contenido correspondiente.</p>
+<p>Wokwi copia <strong>todos los archivos del proyecto</strong> al sistema de archivos del ESP32,
+por lo que los <code>import</code> entre módulos funcionan igual que en Python normal.</p>
+<h3 id="b2-que-hace-cada-modulo">B.2 Qué hace cada módulo</h3>
+<table>
+<thead>
+<tr>
+<th>Archivo</th>
+<th>Responsabilidad</th>
+<th>Elementos clave</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>config.py</code></td>
+<td><strong>Todo</strong> lo ajustable en un solo lugar</td>
+<td>pines, SSID, broker, tópicos, umbrales, temporizaciones</td>
+</tr>
+<tr>
+<td><code>sensors.py</code></td>
+<td>Lee el hardware</td>
+<td><code>MotionSensor</code> (PIR), <code>LightSensor</code> (LDR → lux)</td>
+</tr>
+<tr>
+<td><code>actuators.py</code></td>
+<td>Controla salidas sin bloquear</td>
+<td><code>Led</code>, <code>Buzzer</code> (PWM), <code>AlarmPanel.tick()</code></td>
+</tr>
+<tr>
+<td><code>display.py</code></td>
+<td>Presentación</td>
+<td><code>OledDisplay.render(snapshot)</code> con degradación elegante</td>
+</tr>
+<tr>
+<td><code>net_mqtt.py</code></td>
+<td>Comunicación</td>
+<td><code>connect_wifi()</code>, <code>sync_time()</code> (NTP), <code>MqttService</code></td>
+</tr>
+<tr>
+<td><code>security.py</code></td>
+<td><strong>Dominio / lógica de negocio</strong></td>
+<td><code>SecuritySystem</code>: estados, eventos y comandos</td>
+</tr>
+<tr>
+<td><code>main.py</code></td>
+<td>Orquestación</td>
+<td>bucle de muestreo y despacho de eventos</td>
+</tr>
+</tbody>
+</table>
+<h3 id="b3-el-bucle-principal-orientado-a-eventos-no-bloqueante">B.3 El bucle principal (orientado a eventos, no bloqueante)</h3>
+<pre><code class="language-python">while True:
+    now = time.ticks_ms()
+    mqtt.check_messages()                     # 1. comandos desde la nube
+    for payload in mqtt.drain_commands():
+        system.handle_command(payload, &quot;mqtt&quot;)
+    ... botón local ...                       # 2. armado/desarmado físico
+    if vencio SAMPLE_MS:                      # 3. lectura de sensores
+        system.update(pir.read(), ldr.read_lux(), now)
+    alarm_panel.tick(now)                     # 4. parpadeo y pitido
+    if vencio TELEMETRY_MS:                   # 5. publicación
+        mqtt.publish_telemetry(system.snapshot())
+    if vencio DISPLAY_MS:                     # 6. pantalla
+        display.render(system.snapshot())
+    mqtt.ensure_connected()                   # 7. reconexión
+    time.sleep_ms(50)
+</code></pre>
+<p>Nada de lo anterior espera la red: <code>check_msg()</code> retorna de inmediato si no hay
+mensajes, y los tiempos se comparan con <code>time.ticks_ms()</code>.</p>
+<h3 id="b4-maquina-de-estados">B.4 Máquina de estados</h3>
+<pre><code>  DESARMADO --(ARM/boton)--&gt; ARMADO --(movimiento)--&gt; ALARMA
+       ^                       ^                        |
+       |                       |                        |
+       +---(DISARM/boton)------+&lt;---(SILENCE/30 s)------+
+       |                                            |
+       +---------------(DISARM/boton)---------------+
+</code></pre>
+<p>Cada transición genera un <strong>evento</strong> (<code>ARMED</code>, <code>MOTION_DETECTED</code>, <code>ALARM_ON</code>,
+<code>ALARM_SILENCED</code>, <code>ALARM_TIMEOUT</code>, <code>COMMAND_RECEIVED</code>, …) que se publica por MQTT
+y se guarda en SQLite.</p>
+<h3 id="b5-comandos-aceptados">B.5 Comandos aceptados</h3>
+<table>
+<thead>
+<tr>
+<th>Comando</th>
+<th>Acción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ARM</code> / <code>ARMAR</code></td>
+<td>activa la vigilancia (enciende LED verde)</td>
+</tr>
+<tr>
+<td><code>DISARM</code> / <code>DESARMAR</code></td>
+<td>desactiva la vigilancia</td>
+</tr>
+<tr>
+<td><code>SILENCE</code> / <code>SILENCIAR</code></td>
+<td>silencia la alarma manteniendo el sistema armado</td>
+</tr>
+<tr>
+<td><code>STATUS</code> / <code>ESTADO</code></td>
+<td>reporta el estado actual</td>
+</tr>
+<tr>
+<td><code>PING</code></td>
+<td>comprueba que el dispositivo responde</td>
+</tr>
+</tbody>
+</table>
+<p>El parser acepta <strong>texto plano</strong> (<code>ARM</code>) o <strong>JSON</strong> (<code>{"cmd":"ARM"}</code>).</p>
+<hr>
+<h2 id="5-parte-c-backend-en-python">5. PARTE C — Backend en Python</h2>
+<h3 id="c1-instalacion">C.1 Instalación</h3>
+<pre><code class="language-bash">cd Parcial2-Sistema-Seguridad-IoT
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install -r requirements.txt
+</code></pre>
+<p>Dependencias: <code>paho-mqtt</code> (cliente MQTT) y <code>requests</code> (HTTP hacia ThingSpeak).
+<code>sqlite3</code> forma parte de la biblioteca estándar.</p>
+<h3 id="c2-ejecutar">C.2 Ejecutar</h3>
+<pre><code class="language-bash">python -m backend.main
+</code></pre>
+<p>Salida esperada:</p>
+<pre><code>==============================================================
+ BACKEND - Sistema de Seguridad IoT
+ MQTT  broker.hivemq.com:1883 | SQLite .../data/seguridad.db
+ ThingSpeak dashboard: deshabilitado (falta THINGSPEAK_WRITE_KEY)
+ ThingSpeak TalkBack : deshabilitado (faltan claves de TalkBack)
+==============================================================
+[mqtt] conectado a broker.hivemq.com:1883 y suscrito a:
+        - seguridad/casa-01/telemetry
+        - seguridad/casa-01/event
+</code></pre>
+<p>La base <code>data/seguridad.db</code> se crea automáticamente con <code>sql/schema.sql</code>.</p>
+<h3 id="c3-prueba-sin-wokwi-recomendada-antes-de-la-simulacion">C.3 Prueba sin Wokwi (recomendada antes de la simulación)</h3>
+<pre><code class="language-bash">python -m tests.simulador_dispositivo --segundos 30 --movimiento
+</code></pre>
+<p>Este script hace exactamente lo que haría el ESP32: publica telemetría cada 2 s,
+genera una intrusión a los 12 segundos y responde a los comandos. Permite validar
+<strong>toda la cadena broker → backend → SQLite</strong> en un minuto.</p>
+<hr>
+<h2 id="6-parte-d-thingspeak-plataforma-en-la-nube">6. PARTE D — ThingSpeak (plataforma en la nube)</h2>
+<h3 id="d1-crear-el-canal">D.1 Crear el canal</h3>
+<ol>
+<li>Entra a <a href="https://thingspeak.com">https://thingspeak.com</a> → <strong>New Channel</strong>.</li>
+<li>Nombre: <code>Sistema de Seguridad IoT</code>.</li>
+<li>Habilita cuatro campos:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Nombre</th>
+<th>Contenido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Field 1</td>
+<td>Movimiento</td>
+<td>0 / 1</td>
+</tr>
+<tr>
+<td>Field 2</td>
+<td>Luz (lux)</td>
+<td>iluminación ambiental</td>
+</tr>
+<tr>
+<td>Field 3</td>
+<td>Armado</td>
+<td>0 / 1</td>
+</tr>
+<tr>
+<td>Field 4</td>
+<td>Alarma</td>
+<td>0 / 1</td>
+</tr>
+</tbody>
+</table>
+<ol start="4">
+<li>Pestaña <strong>API Keys</strong>: copia <code>Channel ID</code>, <strong>Write API Key</strong> y <strong>Read API Key</strong>.</li>
+</ol>
+<h3 id="d2-habilitar-el-dashboard">D.2 Habilitar el dashboard</h3>
+<pre><code class="language-bash">export THINGSPEAK_CHANNEL_ID=&quot;1234567&quot;
+export THINGSPEAK_WRITE_KEY=&quot;XXXXXXXXXXXXXXXX&quot;
+python -m backend.main
+</code></pre>
+<p>El backend envía una actualización cada <strong>15 s</strong> (límite del plan gratuito) y
+el dashboard de ThingSpeak muestra las cuatro gráficas en tiempo real, más el
+campo de estado con la descripción del sistema.</p>
+<h3 id="d3-comandos-desde-la-nube-talkback">D.3 Comandos desde la nube (TalkBack)</h3>
+<ol>
+<li>En ThingSpeak: <strong>Apps → TalkBack → New TalkBack</strong> (vinculado al canal).</li>
+<li>Copia <strong>TalkBack ID</strong> y <strong>TalkBack API Key</strong>:</li>
+</ol>
+<pre><code class="language-bash">export THINGSPEAK_TALKBACK_ID=&quot;987654&quot;
+export THINGSPEAK_TALKBACK_KEY=&quot;ZZZZZZZZZZZZZZZZZZ&quot;
+python -m backend.main
+</code></pre>
+<ol start="3">
+<li>En la pestaña <strong>Commands</strong> de TalkBack escribe, por ejemplo, <code>ARM</code> y guarda.</li>
+<li>El backend toma el comando por REST cada 10 s, lo reenvía por MQTT al
+   dispositivo y el dispositivo responde con el evento <code>COMMAND_RECEIVED</code>.</li>
+</ol>
+<p><strong>Alternativa sin TalkBack:</strong> usar un cliente MQTT web (por ejemplo
+<a href="https://www.hivemq.com/demos/websocket-client/">https://www.hivemq.com/demos/websocket-client/</a>), conectarte a
+<code>broker.hivemq.com</code> y publicar en <code>seguridad/casa-01/command</code> con payload <code>ARM</code>.</p>
+<hr>
+<h2 id="7-parte-e-base-de-datos-y-consultas-de-historico">7. PARTE E — Base de datos y consultas de histórico</h2>
+<h3 id="e1-esquema">E.1 Esquema</h3>
+<table>
+<thead>
+<tr>
+<th>Tabla</th>
+<th>Contenido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lecturas</code></td>
+<td>una fila por cada telemetría: <code>recibido_at</code>, <code>motion</code>, <code>lux</code>, <code>armed</code>, <code>alarm</code>…</td>
+</tr>
+<tr>
+<td><code>eventos</code></td>
+<td>eventos de seguridad: <code>MOTION_DETECTED</code>, <code>ALARM_ON</code>, <code>COMMAND_RECEIVED</code>…</td>
+</tr>
+<tr>
+<td><code>comandos</code></td>
+<td>trazabilidad: <code>origen</code>, <code>comando</code>, <code>estado</code> (<code>ENVIADO → APLICADO / RECHAZADO</code>)</td>
+</tr>
+<tr>
+<td><code>vista_ultima_lectura</code></td>
+<td>última lectura registrada</td>
+</tr>
+<tr>
+<td><code>vista_alarmas</code></td>
+<td>histórico de alarmas y detecciones</td>
+</tr>
+</tbody>
+</table>
+<p>El script completo está en <code>sql/schema.sql</code>.</p>
+<h3 id="e2-consultas-desde-python">E.2 Consultas desde Python</h3>
+<pre><code class="language-bash">python -m backend.queries resumen
+python -m backend.queries lecturas -n 20
+python -m backend.queries eventos -n 30
+python -m backend.queries eventos --tipo MOTION_DETECTED
+python -m backend.queries comandos -n 10
+python -m backend.queries entre --desde 2026-11-08T00:00:00 --hasta 2026-11-08T23:59:59
+</code></pre>
+<h3 id="e3-consultas-sql-directas">E.3 Consultas SQL directas</h3>
+<pre><code class="language-bash">sqlite3 data/seguridad.db &lt; sql/consultas.sql
+</code></pre>
+<p>Incluye diez consultas comentadas: últimas lecturas, historial de intrusiones,
+histórico de alarmas, trazabilidad de comandos, rango de fechas, estadísticas de
+luz, distribución de eventos, intrusiones con sistema armado, última lectura y
+resumen general.</p>
+<h3 id="e4-enviar-comandos-desde-la-terminal">E.4 Enviar comandos desde la terminal</h3>
+<pre><code class="language-bash">python -m backend.cli ARM
+python -m backend.cli SILENCE
+python -m backend.cli --list
+</code></pre>
+<hr>
+<h2 id="8-parte-f-secuencia-completa-de-demostracion">8. PARTE F — Secuencia completa de demostración</h2>
+<table>
+<thead>
+<tr>
+<th>Paso</th>
+<th>Acción</th>
+<th>Qué debe observarse</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>python -m backend.main</code></td>
+<td>el backend se suscribe a los tópicos</td>
+</tr>
+<tr>
+<td>2</td>
+<td>▶ <strong>Start Simulation</strong> en Wokwi</td>
+<td>el OLED muestra <em>Iniciando…</em> y luego el estado</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Mover el cursor sobre el sensor PIR</td>
+<td>el LED verde parpadea y aparece <code>MOTION_DETECTED</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Cambiar el valor de <code>lux</code> del LDR</td>
+<td>cambian <code>lux</code>, <code>light_state</code> y la gráfica 2 de ThingSpeak</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Pulsar la tecla configurada (<code>b</code>) o el botón</td>
+<td><code>ARMED</code> → LED verde encendido</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Generar movimiento estando ARMADO</td>
+<td><strong>alarma</strong>: LED rojo parpadea + buzzer + <code>ALARM_ON</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>python -m backend.cli SILENCE</code></td>
+<td>la alarma se silencia y sigue armado</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>python -m backend.queries resumen</code></td>
+<td>conteos de lecturas, eventos y comandos</td>
+</tr>
+<tr>
+<td>9</td>
+<td>ThingSpeak → <strong>TalkBack → Commands</strong> → <code>ARM</code></td>
+<td>el comando llega al dispositivo por MQTT</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Capturas de pantalla</td>
+<td>ver la sección de entregables</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="9-parte-g-entregables">9. PARTE G — Entregables</h2>
+<ol>
+<li><strong>Código fuente en GitHub</strong> (este repositorio) y copia en <strong>Teams</strong>.</li>
+<li><strong><code>README.md</code></strong> con descripción, arquitectura y instrucciones.</li>
+<li><strong><code>requirements.txt</code></strong> con las librerías utilizadas.</li>
+<li><strong>Scripts SQL</strong>: <code>sql/schema.sql</code> y <code>sql/consultas.sql</code>.</li>
+<li><strong>Diagrama de la arquitectura</strong>: <code>docs/arquitectura.md</code> (mermaid + ASCII).</li>
+<li><strong>Capturas del circuito</strong> en <code>docs/capturas/</code>:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Archivo</th>
+<th>Qué muestra</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>01-circuito-wokwi.png</code></td>
+<td>circuito completo con la simulación corriendo</td>
+</tr>
+<tr>
+<td><code>02-senal-alarma.png</code></td>
+<td>PIR activado con LED rojo y buzzer en marcha</td>
+</tr>
+<tr>
+<td><code>03-display-oled.png</code></td>
+<td>OLED mostrando ARMADO / ALARMA</td>
+</tr>
+<tr>
+<td><code>04-mqtt-messages.png</code></td>
+<td>telemetría y eventos en un cliente MQTT</td>
+</tr>
+<tr>
+<td><code>05-thingspeak-dashboard.png</code></td>
+<td>dashboard con las 4 gráficas en tiempo real</td>
+</tr>
+<tr>
+<td><code>06-sqlite-consultas.png</code></td>
+<td>salida de <code>backend.queries</code></td>
+</tr>
+<tr>
+<td><code>07-comando-nube.png</code></td>
+<td>comando creado en la nube y ejecutado por el dispositivo</td>
+</tr>
+<tr>
+<td><code>08-arquitectura.png</code></td>
+<td>diagrama de arquitectura / flujo de datos</td>
+</tr>
+</tbody>
+</table>
+<ol start="7">
+<li><strong>Proyecto ZIP de Wokwi</strong>: en Wokwi, menú <strong>⋯ → Download project files</strong>
+   (o <em>Share → Download</em>). Guarda el <code>.zip</code> en el repositorio.</li>
+<li><strong>Documentación</strong> (este PDF) y <strong>defensa oral</strong>.</li>
+</ol>
+<h3 id="mapeo-con-los-criterios-de-evaluacion">Mapeo con los criterios de evaluación</h3>
+<table>
+<thead>
+<tr>
+<th>Criterio</th>
+<th>Peso</th>
+<th>Dónde se cumple</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Funcionamiento completo</td>
+<td>30%</td>
+<td>simulación Wokwi + backend + SQLite + ThingSpeak</td>
+</tr>
+<tr>
+<td>Calidad de código</td>
+<td>10%</td>
+<td>7 módulos modulares, docstrings, PEP 8, sin código muerto</td>
+</tr>
+<tr>
+<td>Integración</td>
+<td>5%</td>
+<td>MQTT ↔ SQLite ↔ ThingSpeak, trazabilidad de comandos</td>
+</tr>
+<tr>
+<td>Documentación</td>
+<td>5%</td>
+<td>README, <code>docs/arquitectura.md</code>, este PDF, scripts SQL</td>
+</tr>
+<tr>
+<td>Defensa oral</td>
+<td>50%</td>
+<td>ver la sección siguiente</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="10-defensa-oral-preguntas-frecuentes">10. Defensa oral — preguntas frecuentes</h2>
+<p><strong>¿Por qué MQTT y no HTTP?</strong>
+MQTT es un protocolo ligero publica/suscribe diseñado para IoT: poca cabecera,
+funciona con conexiones inestables, permite tópicos jerárquicos y que múltiples
+suscriptores reciban el mismo evento sin duplicar peticiones.</p>
+<p><strong>¿Por qué un broker público?</strong>
+Wokwi entrega conectividad real al ESP32, así que se puede usar <code>broker.hivemq.com</code>
+sin instalar nada. En producción se usaría un broker propio (Mosquitto/EMQX).</p>
+<p><strong>¿Qué significa "orientado a eventos"?</strong>
+La lógica no se ejecuta de forma lineal: los cambios (llegada de un comando,
+flanco del PIR, timeout de la alarma) generan eventos que se despachan a
+escritores interesados (<code>emit()</code> → MQTT → base de datos → dashboard).</p>
+<p><strong>¿Por qué el bucle es no bloqueante?</strong>
+Si se usara <code>wait_msg()</code> o <code>sleep()</code> largo, el ESP32 dejaría de leer sensores y
+de atender la alarma. Con <code>check_msg()</code> y comparación de <code>ticks_ms()</code> el sistema
+responde en menos de 100 ms.</p>
+<p><strong>¿Dónde corre SQLite y por qué?</strong>
+En el backend (PC), porque MicroPython en el ESP32 no incluye SQLite. El
+dispositivo sólo manda datos; la persistencia y las consultas se hacen en el
+lado servidor, que sí tiene ficheros y más recursos.</p>
+<p><strong>¿Cómo se sincronizan los tiempos?</strong>
+El firmware hace sync con un servidor NTP (<code>ntptime</code>) y publica el timestamp;
+el backend agrega <code>recibido_at</code> con la hora local, de modo que siempre hay
+fecha y hora en la base aunque el dispositivo no logre sincronizar.</p>
+<p><strong>¿Cómo llega un comando desde la nube hasta el ESP32?</strong>
+ThingSpeak TalkBack → REST (<code>POST /talkbacks/&lt;id&gt;/commands/execute.json</code>) →
+backend Python → publicación MQTT en <code>seguridad/casa-01/command</code> → callback del
+dispositivo → <code>SecuritySystem.handle_command()</code> → evento <code>COMMAND_RECEIVED</code> que
+vuelve al backend para marcar el comando como <code>APLICADO</code>.</p>
+<p><strong>¿Qué pasa si se cae la red o el broker?</strong>
+<code>ensure_connected()</code> reintenta cada 5 s con retroceso, el display muestra el
+error, y el sistema sigue funcionando localmente (lecturas, botón y alarma).</p>
+<p><strong>¿Cómo evitas los rebotes del botón?</strong>
+Debouncing por software: se registra el último instante de pulsación y sólo se
+acepta un nuevo flanco pasados <code>BUTTON_DEBOUNCE_MS</code> (250 ms).</p>
+<p><strong>¿Por qué dos LEDs y no uno?</strong>
+Para separar semántica: verde = sistema armado (vigilancia activa), rojo =
+alarma activa. Así se comprueba de un vistazo el estado sin mirar la pantalla.</p>
+<p><strong>¿Cómo mediste la iluminación en lux?</strong>
+Se convierte el valor del ADC a tensión, luego a resistencia del LDR con el
+divisor de tensión del módulo y finalmente a lux con la fórmula
+<code>lux = (RL10 · 10³ · 10^γ / R)^(1/γ)</code> (γ = 0.7, RL10 = 50 kΩ), tomada de la
+documentación del módulo.</p>
+<p><strong>¿Por qué 15 segundos en ThingSpeak?</strong>
+El plan gratuito de ThingSpeak permite una actualización cada 15 s; el backend
+espacía los envíos para no perder datos por límite de tasa.</p>
+<hr>
+<h2 id="11-solucion-de-problemas">11. Solución de problemas</h2>
+<table>
+<thead>
+<tr>
+<th>Síntoma</th>
+<th>Causa probable</th>
+<th>Solución</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ImportError: umqtt</code></td>
+<td>falta la biblioteca</td>
+<td>agrega <code>micropython-umqtt.simple</code> en el Library Manager</td>
+</tr>
+<tr>
+<td><code>ImportError: ssd1306</code></td>
+<td>falta la biblioteca</td>
+<td>agrega <code>micropython-ssd1306</code>; el sistema sigue sin OLED</td>
+</tr>
+<tr>
+<td>El OLED queda en blanco</td>
+<td>dirección I2C incorrecta</td>
+<td>revisa <code>i2cAddress: "0x3c"</code> y los pines 21/22</td>
+</tr>
+<tr>
+<td><code>[wifi] ERROR: sin respuesta</code></td>
+<td>SSID incorrecto</td>
+<td>usa <code>Wokwi-GUEST</code> (no pide contraseña)</td>
+</tr>
+<tr>
+<td><code>[mqtt] ERROR al conectar</code></td>
+<td>sin Internet en Wokwi</td>
+<td>revisa que la simulación esté corriendo</td>
+</tr>
+<tr>
+<td>No llega telemetría al backend</td>
+<td>mismo <code>client_id</code> en dos procesos</td>
+<td>usa IDs distintos (el CLI ya usa <code>-cli</code>)</td>
+</tr>
+<tr>
+<td><code>SQLite … thread</code></td>
+<td>conexión usada desde otro hilo</td>
+<td>ya resuelto: <code>check_same_thread=False</code> + candado</td>
+</tr>
+<tr>
+<td>ThingSpeak no recibe datos</td>
+<td>falta Write API Key</td>
+<td>exporta <code>THINGSPEAK_WRITE_KEY</code></td>
+</tr>
+<tr>
+<td>TalkBack no llega</td>
+<td>faltan credenciales o cola vacía</td>
+<td>exporta <code>THINGSPEAK_TALKBACK_ID</code> y <code>_KEY</code>, crea un comando</td>
+</tr>
+<tr>
+<td><code>No se pudo encontrar el esquema</code></td>
+<td>ejecución fuera de la raíz</td>
+<td>corre <code>python -m backend.main</code> desde la raíz del repo</td>
+</tr>
+<tr>
+<td>Alarma que no suena</td>
+<td>el buzzer necesita PWM</td>
+<td><code>AlarmPanel</code> usa <code>machine.PWM</code> a 2 kHz; revisa <code>mode: "smooth"</code></td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="12-comandos-de-referencia-rapida">12. Comandos de referencia rápida</h2>
+<pre><code class="language-bash"># Backend
+python -m backend.main                     # levantar el backend
+python -m backend.cli ARM|DISARM|SILENCE|STATUS|PING
+python -m backend.queries resumen|lecturas|eventos|comandos|entre
+
+# Pruebas
+python -m tests.simulador_dispositivo --segundos 30 --movimiento
+
+# Base de datos
+sqlite3 data/seguridad.db &lt; sql/consultas.sql
+
+# Git
+git add . &amp;&amp; git commit -m &quot;mensaje&quot; &amp;&amp; git push
+</code></pre>
+<hr>
+<p><strong>Parcial #2</strong> · Desarrollo de Software VIII · Universidad
+Tecnológica de Panamá · <strong>Richard Rodríguez</strong> ·
+github.com/Death272004</p>
+</body>
+</html>

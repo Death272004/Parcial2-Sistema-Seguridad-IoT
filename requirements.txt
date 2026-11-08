@@ -1,0 +1,30 @@
+# =====================================================================
+# Dependencias del BACKEND (Python 3) - Sistema de Seguridad IoT
+# Parcial #2 | Desarrollo de Software VIII | UTP
+#
+# Instalar con:
+#     pip install -r requirements.txt
+#
+# NOTA: el firmware (carpeta firmware/) NO usa este archivo:
+#       corre en MicroPython dentro de Wokwi y sus dependencias se
+#       agregan desde el "Library Manager" de Wokwi
+#       (ver firmware/libraries.txt).
+# =====================================================================
+
+# Cliente MQTT: recibe la telemetría/eventos y envía comandos
+# al dispositivo. Se detecta automáticamente la API 1.x o 2.x.
+paho-mqtt>=2.0.0
+
+# Cliente HTTP: actualiza el dashboard de ThingSpeak y consulta
+# la cola de comandos de ThingSpeak TalkBack.
+requests>=2.31.0
+
+# sqlite3, json, argparse, threading y datetime forman parte de la
+# biblioteca estándar de Python 3: no requieren instalación.
+
+# ---------------------------------------------------------------------
+# Opcional — sólo para regenerar la documentación en PDF
+#     python3 docs/generar_pdf.py
+# ---------------------------------------------------------------------
+# markdown>=3.5
+# weasyprint>=60
