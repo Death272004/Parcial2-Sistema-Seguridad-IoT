@@ -169,12 +169,18 @@ class Database:
             conn.commit()
 
     def ultimo_comando_enviado(self, comando: str):
-        """Devuelve el id del comando más reciente aún pendiente de ACK."""
+        """Devuelve el id del comando más reciente aún pendiente de ACK.
+
+        Se aceptan los estados ENVIADO (publicado, sin confirmación) y
+        APLICADO por si la confirmación llega después de que otra
+        herramienta haya marcado el comando como enviado.
+        """
         with self._lock:
             return self.connection.execute(
                 """
                 SELECT id FROM comandos
-                WHERE comando = ? AND estado = 'ENVIADO'
+                WHERE comando = ?
+                  AND estado IN ('ENVIADO', 'APLICADO')
                 ORDER BY id DESC LIMIT 1
                 """,
                 (comando.upper(),),

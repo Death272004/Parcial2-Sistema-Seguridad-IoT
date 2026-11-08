@@ -60,12 +60,19 @@ def main(argv=None):
         print("No se pudo conectar al broker MQTT.")
         return 1
 
-    command_id = db.insert_comando("cli", command, estado="ENVIADO")
     sent = bridge.publish_command(command, origen="cli")
-    db.update_comando(command_id,
-                      "APLICADO" if sent else "ERROR",
-                      "Publicado en " + config.TOPIC_COMMAND if sent
-                      else "Fallo al publicar")
+    if sent:
+        # Estado ENVIADO: el backend lo marcará como APLICADO cuando el
+        # dispositivo responda con el evento COMMAND_RECEIVED.
+        db.insert_comando(
+            "cli", command, estado="ENVIADO",
+            detalle="Publicado en {} (pendiente de confirmación)".format(
+                config.TOPIC_COMMAND))
+    else:
+        db.insert_comando(
+            "cli", command, estado="ERROR",
+            detalle="No fue posible publicar en {}".format(
+                config.TOPIC_COMMAND))
 
     bridge.stop()
     db.close()
