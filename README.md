@@ -7,6 +7,10 @@ Sistema completo que detecta intrusiones, activa alarmas visuales y sonoras, alm
 SQLite, los visualiza en **ThingSpeak** y permite **control remoto bidireccional** desde la nube:
 ESP32 (simulado en **Wokwi**) ⇄ **MQTT** ⇄ **Backend Python** ⇄ **SQLite + ThingSpeak**.
 
+🔗 **Simulación en Wokwi:** https://wokwi.com/projects/480350734339804161
+
+📦 **Proyecto Wokwi (zip):** [`wokwi/wokwi-sistema-seguridad-iot.zip`](wokwi/wokwi-sistema-seguridad-iot.zip)
+
 ---
 
 ## 📐 Arquitectura general
@@ -88,6 +92,8 @@ Parcial2-Sistema-Seguridad-IoT/
 │   ├── security.py               ← máquina de estados / eventos
 │   ├── diagram.json              ← circuito de Wokwi (cableado)
 │   └── libraries.txt             ← bibliotecas de Wokwi
+├── wokwi/
+│   └── wokwi-sistema-seguridad-iot.zip ← proyecto descargado de Wokwi
 ├── backend/                      ← integración Python 3
 │   ├── main.py                   ← orquestador (MQTT ↔ SQLite ↔ ThingSpeak)
 │   ├── config.py                 ← configuración y variables de entorno
