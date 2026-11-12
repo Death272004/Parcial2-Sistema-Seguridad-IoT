@@ -102,6 +102,10 @@ Parcial2-Sistema-Seguridad-IoT/
 │   ├── thingspeak.py             ← cliente ThingSpeak + TalkBack
 │   ├── queries.py                ← CLI de históricos
 │   └── cli.py                    ← envío manual de comandos
+├── cloud/matlab/                 ← extra: MATLAB en ThingSpeak
+│   ├── automatizacion_talkback.m ← reglas en la nube → encola comandos TalkBack
+│   ├── visualizacion_historial.m ← gráfica de historial para el dashboard
+│   └── README.md                 ← cómo pegarlos y programarlos (TimeControl)
 ├── sql/
 │   ├── schema.sql                ← esquema de la base de datos
 │   └── consultas.sql             ← consultas de histórico comentadas
@@ -158,6 +162,10 @@ También desde la nube:
 * **Cliente MQTT web** (HiveMQ) publicando en `seguridad/casa-01/command`.
 * **ThingSpeak TalkBack**: crear el comando en la interfaz web; el backend lo
   toma y lo reenvía al dispositivo.
+* **Automático con MATLAB (extra)**: un *MATLAB Analysis* programado con
+  *TimeControl* revisa el canal cada 5 min y, si estuvo oscuro con el sistema
+  desarmado, encola `ARM` en TalkBack por sí solo. Ver
+  [`cloud/matlab/README.md`](cloud/matlab/README.md).
 
 ## 📊 Consultas de históricos
 

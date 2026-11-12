@@ -277,6 +277,27 @@ python -m backend.main
 Si las claves no están definidas, el backend funciona igualmente en modo
 **sólo local** (MQTT + SQLite) y avisa en el arranque.
 
+### 6.4 Automatización en la nube con MATLAB (extra)
+
+ThingSpeak incluye MATLAB, así que la nube también puede **decidir**, además
+de mostrar datos. El script `cloud/matlab/automatizacion_talkback.m` corre
+como *MATLAB Analysis* cada 5 min (*TimeControl*):
+
+1. Lee los campos 1–4 de los últimos 10 min con `thingSpeakRead`.
+2. **Regla R1:** si toda la ventana tuvo luz < 30 lux y el sistema estaba
+   desarmado, encola `ARM` en TalkBack (`POST /talkbacks/<id>/commands.json`).
+3. No duplica: si el mismo comando ya está pendiente en la cola, no lo
+   vuelve a encolar.
+
+El comando sigue el mismo camino que uno escrito a mano. El backend lo saca
+con `execute.json`, lo valida contra `VALID_COMMANDS`, lo registra en SQLite
+con origen `thingspeak` y lo publica en `seguridad/casa-01/command`. No hubo
+que cambiar el backend ni el firmware.
+
+`cloud/matlab/visualizacion_historial.m` agrega al dashboard una gráfica de
+luz con las franjas en que el sistema estuvo armado, más los eventos por
+hora. Los pasos están en `cloud/matlab/README.md`.
+
 ---
 
 ## 7. Decisiones de diseño
