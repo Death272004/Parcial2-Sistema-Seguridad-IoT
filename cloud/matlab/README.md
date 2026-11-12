@@ -80,3 +80,16 @@ la cola, no lo duplica: imprime `"ARM" ya está pendiente en TalkBack`.
   según `VALID_COMMANDS` en `backend/config.py`.
 - El plan gratuito de ThingSpeak limita el tiempo de cómputo diario de
   MATLAB. Correr cada 5 min queda muy por debajo de ese límite.
+
+## Evidencia (prueba del 11-nov-2026)
+
+Con luz de 24.8 lux y el sistema desarmado, el análisis encoló `ARM`; el
+backend lo tomó de TalkBack y el ESP32 pasó a ARMADO. Después, el
+TimeControl volvió a armarlo solo tras desarmarlo con el botón.
+
+| | |
+|---|---|
+| Salida del MATLAB Analysis | ![](../../docs/capturas/09-matlab-analysis.png) |
+| TimeControl cada 5 min | ![](../../docs/capturas/10-matlab-timecontrol.png) |
+| Backend recibe `ARM` desde la nube | ![](../../docs/capturas/07-comando-nube.png) |
+| Gráfica de historial | ![](../../docs/capturas/11-matlab-visualizacion.png) |
