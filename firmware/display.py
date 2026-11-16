@@ -31,20 +31,33 @@ except ImportError:          # entorno de pruebas sin MicroPython
 
 
 def _safe_hline(oled, x, y, length, color=1):
-    """Intenta dibujar una línea horizontal; si el método no existe, usa fill."""
-    try:
-        oled.hline(x, y, length, color)
-    except AttributeError:
-        # Fallback: dibujar un rectángulo de 1 píxel de alto
-        oled.fill_rect(x, y, length, 1, color)
+    """Dibuja una línea horizontal compatible con drivers antiguos.
+    
+    Busca el método en: oled -> oled.framebuf -> píxel a píxel.
+    """
+    # 1) Intentar en oled directamente, luego en oled.framebuf
+    for target in (oled, getattr(oled, "framebuf", None)):
+        if target is not None and hasattr(target, "hline"):
+            target.hline(x, y, length, color)
+            return
+    # 2) Último recurso: dibujar píxel por píxel
+    for i in range(length):
+        oled.pixel(x + i, y, color)
 
 
 def _safe_vline(oled, x, y, length, color=1):
-    """Intenta dibujar una línea vertical; si el método no existe, usa fill."""
-    try:
-        oled.vline(x, y, length, color)
-    except AttributeError:
-        oled.fill_rect(x, y, 1, length, color)
+    """Dibuja una línea vertical compatible con drivers antiguos.
+    
+    Busca el método en: oled -> oled.framebuf -> píxel a píxel.
+    """
+    # 1) Intentar en oled directamente, luego en oled.framebuf
+    for target in (oled, getattr(oled, "framebuf", None)):
+        if target is not None and hasattr(target, "vline"):
+            target.vline(x, y, length, color)
+            return
+    # 2) Último recurso: dibujar píxel por píxel
+    for i in range(length):
+        oled.pixel(x, y + i, color)
 
 
 class OledDisplay:

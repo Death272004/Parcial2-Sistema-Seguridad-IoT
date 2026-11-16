@@ -67,6 +67,8 @@ def read_button(button, last_press_ms):
 
 
 def main():
+    print_boot_note()
+
     print("=" * 62)
     print(" SISTEMA DE SEGURIDAD IoT - Detección y alertas")
     print(" Parcial #2 | Desarrollo de Software VIII | UTP")
@@ -84,8 +86,13 @@ def main():
     status_led = Led(config.PIN_LED_STATUS)
     button = Pin(config.PIN_BUTTON, Pin.IN, Pin.PULL_UP)
 
+    # Inicialización de contadores para el resumen final
+    sample_count = 0
+    motion_count = 0
+    alarm_count = 0
+
     print("[init] PIR en GPIO{} | LDR en GPIO{}".format(pir.pin_number,
-                                                        ldr.pin_number))
+                                                            ldr.pin_number))
     print("[init] Alarma en GPIO{}/{} | Estado en GPIO{}".format(
         config.PIN_LED_ALARM, config.PIN_BUZZER, config.PIN_LED_STATUS))
 
@@ -143,13 +150,18 @@ def main():
             # 3.3 Muestreo de sensores en tiempo real
             if time.ticks_diff(now, last_sample) >= config.SAMPLE_MS:
                 last_sample = now
+                sample_count += 1
                 motion = pir.read()
                 lux = ldr.read_lux()
                 system.update(motion, lux, now_ms=now)
+                if motion:
+                    motion_count += 1
 
             # 3.4 Actuadores: parpadeo del LED y pitido del buzzer
             alarm_panel.set_active(system.state == config.STATE_ALARM)
             alarm_panel.tick(now)
+            if system.state == config.STATE_ALARM:
+                alarm_count += 1
 
             # LED verde = indicador de sistema ARMADO
             if system.state == config.STATE_ARMED:
