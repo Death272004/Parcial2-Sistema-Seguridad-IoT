@@ -151,7 +151,7 @@ class MqttService:
         return pending
 
     def ensure_connected(self, broker=config.MQTT_BROKER, port=config.MQTT_PORT):
-        """Reconecta automáticamente si la sesión se cayó (backoff 5 s)."""
+        """Reconecta WiFi (si cayó) y MQTT automáticamente (backoff 5 s)."""
         if self.connected:
             return True
         now = time.ticks_ms()
@@ -159,6 +159,12 @@ class MqttService:
            time.ticks_diff(now, self._last_reconnect) < 5000:
             return False
         self._last_reconnect = now
+        wlan = network.WLAN(network.STA_IF)
+        if not wlan.isconnected():
+            print("[wifi] intentando reconectar...")
+            if not connect_wifi():
+                return False
+            sync_time()
         print("[mqtt] intentando reconectar...")
         return self.connect(broker, port)
 
