@@ -198,49 +198,22 @@ python -m backend.queries entre --desde 2026-11-08T00:00:00 --hasta 2026-11-08T2
 
 ---
 
-## 📝 Pendientes (para Richard)
+## 📝 Pendientes
 
-Estado al 11-nov-2026. Ya están subidas las capturas 01, 02, 04, 05, 06, 07 y 09–11 en
-[`docs/capturas/`](docs/capturas/). Quedan dos cosas:
+Estado al 22-nov-2026. Ya están subidas las capturas 01, 02, 04, 05, 06, 07 y 09–11 en
+[`docs/capturas/`](docs/capturas/).
 
-### 1. Pantalla OLED con error → captura `03-display-oled.png`
+**OLED: resuelto.** El error `'SSD1306_I2C' object has no attribute 'fill_rect'` se corrigió en
+`069dc90`: `_safe_hline` / `_safe_vline` (`firmware/display.py`) ahora usan `oled.framebuf`
+y, como último recurso, dibujan píxel por píxel. El `b248c20` añadió además la reconexión
+automática del WiFi en `net_mqtt.py`.
 
-En la consola de Wokwi sale continuamente:
+Solo faltan dos capturas:
 
-```
-[display] error de renderizado: 'SSD1306_I2C' object has no attribute 'fill_rect'
-```
-
-Por ese error el OLED se queda en "Iniciando..." y nunca muestra ARMADO ni ALARMA.
-
-**Causa:** el `ssd1306.py` del proyecto Wokwi es un driver antiguo. Su clase `SSD1306` no hereda
-de `framebuf.FrameBuffer`, así que no tiene `hline`, `vline` ni `fill_rect`, y el arranque lo
-muestra (`hline=False, vline=False`). Cuando no existen `hline` y `vline`,
-`_safe_hline` / `_safe_vline` en `firmware/display.py` recurren a `oled.fill_rect`, que tampoco
-existe en ese driver.
-
-**Arreglo sugerido:** que el respaldo use el framebuffer interno del driver (`oled.framebuf`),
-que sí tiene esos métodos:
-
-```python
-def _safe_hline(oled, x, y, length, color=1):
-    for target in (oled, getattr(oled, "framebuf", None)):
-        if target is not None and hasattr(target, "hline"):
-            target.hline(x, y, length, color)
-            return
-    for i in range(length):                    # último recurso: píxel a píxel
-        oled.pixel(x + i, y, color)
-```
-
-Hacer lo mismo con `_safe_vline` usando `vline` y `oled.pixel(x, y + i, color)`. Después:
-actualizar el proyecto en Wokwi, volver a descargar el zip a `wokwi/` y tomar la captura `03`
-con el sistema ARMADO o en ALARMA. Conviene también rehacer la `01`, que hoy muestra el error
-en la consola.
-
-### 2. Captura `08-arquitectura.png`
-
-Captura del diagrama de la sección [Arquitectura general](#-arquitectura-general), completo y
-con el bloque del ESP32.
+1. **`03-display-oled.png`**: el OLED mostrando el sistema ARMADO o en ALARMA. Conviene rehacer
+   también la `01`, que todavía muestra el error viejo en la consola.
+2. **`08-arquitectura.png`**: el diagrama de la sección
+   [Arquitectura general](#-arquitectura-general), completo.
 
 ---
 
